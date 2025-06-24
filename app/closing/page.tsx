@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { db, auth } from "@/lib/firebase";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function ClosingChecklistPage() {
   const [user] = useAuthState(auth);
+
+  const checklistType = "closing";
 
   const [tasks, setTasks] = useState([
     { id: 1, text: "Check kegs", done: false },
@@ -31,9 +33,9 @@ export default function ClosingChecklistPage() {
     const checklistRef = doc(db, "Checklists", dateId);
 
     await setDoc(checklistRef, {
-      opening: tasks,
+      [checklistType]: tasks,
       user: user.email,
-      completedAt: serverTimestamp()
+      completedAt: serverTimestamp(),
     }, { merge: true });
 
     alert("Checklist saved!");
@@ -47,7 +49,6 @@ export default function ClosingChecklistPage() {
           <div key={task.id} className="flex items-center space-x-3">
             <input
               type="checkbox"
-              title="Check"
               checked={task.done}
               onChange={() => toggleTask(task.id)}
               className="h-5 w-5"
