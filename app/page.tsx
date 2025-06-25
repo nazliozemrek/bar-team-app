@@ -1,12 +1,33 @@
 'use client'
 
+import { useEffect,useState  } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
+import { auth,db } from "@/lib/firebase";
+import { doc,getDoc } from 'firebase/firestore'
 
 export default function LandingPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
+  const [userName,setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchName = async () => {
+      if (!user) return;
+      const userRef = doc(db,"users",user.uid);
+      const userSnap = await getDoc(userRef);
+      if(userSnap.exists()){
+        const data = userSnap.data();
+        setUserName(data.name || user.displayName || user.email);
+      } else {
+        setUserName(user.displayName || user.email);
+      }
+    };
+    fetchName();
+  },[user]);
+
+
+
 
   const handleLogin = () => {
     router.push("/login");
@@ -31,7 +52,7 @@ export default function LandingPage() {
 
       {user ? (
         <>
-          <p className="text-xl">Hello, {user.email}!</p>
+          <p className="text-xl">Hello, {userName  ||  user.email}!</p>
 
           <button
             onClick={handleDashboard}
