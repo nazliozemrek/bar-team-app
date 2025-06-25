@@ -18,7 +18,8 @@ export default function UploadSchedulePage() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch role + last schedule
+  const [usersList, setUsersList] = useState<any[]>([]);
+
   useEffect(() => {
     const fetchUserRole = async () => {
       if (!user) return;
@@ -54,16 +55,24 @@ export default function UploadSchedulePage() {
       }
     };
 
+    const fetchUsersList = async () => {
+      const usersQuery = collection(db, "users");
+      const querySnapshot = await getDocs(usersQuery);
+
+      const allUsers = querySnapshot.docs.map(doc => doc.data());
+      setUsersList(allUsers);
+    };
+
     const fetchAll = async () => {
       await fetchUserRole();
       await fetchLastSchedule();
+      await fetchUsersList();
       setLoading(false);
     };
 
     fetchAll();
   }, [user]);
 
-  // Upload schedule
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     setFile(selectedFile || null);
@@ -81,19 +90,24 @@ export default function UploadSchedulePage() {
       const workbook = XLSX.read(data, { type: "binary" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const jsonData = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: false,
+      });
 
       console.log("Raw data:", jsonData);
 
-      const headerRow = jsonData[1]; // Dates row
-      const dataRows = jsonData.slice(2); // Data
+      const headerRowIndex = findHeaderRow(jsonData);
+      const headerRow = jsonData[headerRowIndex];
+      const dateColumns = headerRow.slice(1);
 
-      const dateColumns = headerRow.slice(1); // skip name col
+      const dataRows = jsonData.slice(headerRowIndex + 1);
 
-      const scheduleData = jsonData.slice(1)
+      const scheduleData = dataRows
         .filter((row: any[]) => row[0])
         .map((row: any[]) => {
           const name = row[0];
+          const email = lookupEmailByName(name, usersList);
           const shifts: string[] = [];
 
           row.slice(1).forEach((cell, index) => {
@@ -108,7 +122,7 @@ export default function UploadSchedulePage() {
             }
           });
 
-          return { name, shifts };
+          return { name, email, shifts };
         });
 
       console.log("Parsed schedule:", scheduleData);
@@ -122,8 +136,6 @@ export default function UploadSchedulePage() {
       });
 
       alert("Schedule uploaded!");
-
-      // Reload page to show latest
       window.location.reload();
     };
 
@@ -146,7 +158,6 @@ export default function UploadSchedulePage() {
     <main className="flex min-h-screen flex-col items-center p-8 space-y-6">
       <h1 className="text-3xl font-bold">Upload Schedule</h1>
 
-      {/* Last uploaded */}
       {lastScheduleDate ? (
         <div className="bg-gray-500 p-4 rounded shadow w-full max-w-md text-left space-y-2">
           <h2 className="text-xl font-semibold mb-2">Last Uploaded Schedule</h2>
@@ -158,7 +169,6 @@ export default function UploadSchedulePage() {
         <p className="text-gray-500">No schedule uploaded yet.</p>
       )}
 
-      {/* Upload Form */}
       <div className="flex flex-col space-y-4 w-full max-w-md mt-8">
         <input
           type="file"
@@ -188,28 +198,69 @@ export default function UploadSchedulePage() {
 
 function parseDate(rawDate: any): string | null {
   try {
+    if (typeof rawDate === 'number') {
+      const jsDate = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+      return jsDate.toISOString().split("T")[0];
+    }
+
     if (rawDate instanceof Date) {
       return rawDate.toISOString().split("T")[0];
     }
 
-    const parts = rawDate.match(/(\w+), (\w+) (\d+)/);
-    if (!parts) return null;
+    const cleaned = String(rawDate).trim();
 
-    const monthName = parts[2];
-    const day = parseInt(parts[3]);
-    const year = new Date().getFullYear();
+    const m1 = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?$/);
+    if (m1) {
+      const month = parseInt(m1[1]);
+      const day = parseInt(m1[2]);
+      const year = m1[3]
+        ? parseInt(m1[3].length === 2 ? "20" + m1[3] : m1[3])
+        : new Date().getFullYear();
+      const jsDate = new Date(year, month - 1, day);
+      return jsDate.toISOString().split("T")[0];
+    }
 
-    const monthIndex = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ].indexOf(monthName);
+    const m2 = cleaned.match(/^(\d{1,2})[\-\s](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?(?:[\-\s](\d{2,4}))?$/i);
+    if (m2) {
+      const day = parseInt(m2[1]);
+      const monthStr = m2[2].toLowerCase();
+      const monthMap: any = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      };
+      const month = monthMap[monthStr.slice(0,3)];
+      const year = m2[3]
+        ? parseInt(m2[3].length === 2 ? "20" + m2[3] : m2[3])
+        : new Date().getFullYear();
+      const jsDate = new Date(year, month, day);
+      return jsDate.toISOString().split("T")[0];
+    }
 
-    if (monthIndex === -1) return null;
+    const parsed = new Date(cleaned);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split("T")[0];
+    }
 
-    const dateObj = new Date(year, monthIndex, day);
-    return dateObj.toISOString().split("T")[0];
+    return null;
   } catch (err) {
-    console.error("Failed to parse date:", rawDate);
+    console.error("Failed to parse date:", rawDate, err);
     return null;
   }
+}
+
+function findHeaderRow(jsonData: any[][]): number {
+  for (let i = 0; i < jsonData.length; i++) {
+    const row = jsonData[i];
+    if (row[0] && typeof row[0] === "string" && row[0].toLowerCase().includes("name")) {
+      return i;
+    }
+  }
+  return 1;
+}
+
+function lookupEmailByName(name: string, users: any[]): string {
+  const match = users.find(u =>
+    u.name?.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  return match?.email || "";
 }

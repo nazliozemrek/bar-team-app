@@ -1,170 +1,97 @@
 'use client'
 
-import { useEffect, useState } from "react";
-import { db, auth } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { useAuthState } from "react-firebase-hooks/auth";
+import { useEffect, useState } from 'react';
+import { auth, db } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
+import dayjs from 'dayjs';
 
 export default function SchedulePage() {
   const [user] = useAuthState(auth);
-  const [profileName, setProfileName] = useState<string | null>(null);
-  const [shifts, setShifts] = useState<string[]>([]);
-  const [calendarWeek, setCalendarWeek] = useState<{ day: string; dateStr: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [weekDates, setWeekDates] = useState<string[]>([]);
+  const [lastUploaded, setLastUploaded] = useState<string>('');
 
   useEffect(() => {
-    const fetchProfileAndSchedule = async () => {
-      if (!user || !user.emailVerified) return;
+    if (!user) return;
 
-      // Get user profile (name)
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+    const fetchSchedule = async () => {
+      try {
+        const schedulesRef = collection(db, 'Schedules');
+        const q = query(schedulesRef, orderBy('uploadedAt', 'desc'), limit(1));
+        const querySnapshot = await getDocs(q);
 
-      if (!userSnap.exists()) {
-        console.error("No user profile found!");
-        setProfileName(null);
-        setShifts([]);
-        setLoading(false);
-        return;
-      }
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          const data = doc.data();
+          const scheduleData = data.schedule || [];
 
-      const userData = userSnap.data();
-      const userName = userData.name?.trim();
-      setProfileName(userName);
+          setSchedule(scheduleData);
 
-      // Get latest schedule
-      const schedulesQuery = query(
-        collection(db, "Schedules"),
-        orderBy("uploadedAt", "desc"),
-        limit(1)
-      );
+          const uploadDate = dayjs(doc.id);
+          setLastUploaded(uploadDate.format('M/D/YYYY'));
 
-      const querySnapshot = await getDocs(schedulesQuery);
+          // NEW — calculate week from first shift in schedule:
+          const allShifts = scheduleData.flatMap((e: any) => e.shifts);
+          const firstShiftDate = allShifts.sort()[0]; // earliest date
 
-      if (!querySnapshot.empty) {
-        const scheduleDoc = querySnapshot.docs[0];
-        const data = scheduleDoc.data();
-        const scheduleArray = data.schedule as any[];
+          const startOfWeek = dayjs(firstShiftDate).startOf('week').add(4, 'day'); // start on Thursday
 
-        console.log("Schedule array:", scheduleArray);
-
-        const userSchedule = scheduleArray.find((entry) => {
-          const entryName = entry.name?.trim().toLowerCase();
-          return entryName === userName?.toLowerCase();
-        });
-
-        console.log("Found userSchedule:", userSchedule);
-
-        if (userSchedule && userSchedule.shifts) {
-          setShifts(userSchedule.shifts);
-
-          // Get first shift date
-          const firstShift = userSchedule.shifts[0];
-          const week = getCalendarWeek(firstShift);
-          setCalendarWeek(week);
-        } else {
-          setShifts([]);
-          const week = getCalendarWeek(new Date().toISOString().split("T")[0]);
-          setCalendarWeek(week);
+          const dates = Array.from({ length: 7 }).map((_, i) =>
+            startOfWeek.add(i, 'day').format('YYYY-MM-DD')
+          );
+          setWeekDates(dates);
         }
+      } catch (error) {
+        console.error('Error fetching schedule:', error);
       }
-
-      setLoading(false);
     };
 
-    fetchProfileAndSchedule();
+    fetchSchedule();
   }, [user]);
 
   if (!user) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p>Please log in to view your schedule.</p>
+      <main className="flex min-h-screen items-center justify-center text-white">
+        <h1>Please log in to view your schedule.</h1>
       </main>
     );
   }
 
-  if (!user.emailVerified) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center space-y-4 p-8">
-        <p className="text-red-500 text-lg">
-          Please verify your email before using the app.
-        </p>
-        <p className="text-sm text-gray-600">
-          Check your email inbox for a verification email.
-        </p>
-      </main>
-    );
-  }
+  const userName = user.displayName || user.email;
+  const entry = schedule.find(e =>
+    e.name === userName || e.email === user.email
+  );
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8 space-y-6">
-      <h1 className="text-3xl font-bold">My Shifts (This Week)</h1>
+    <main className="flex min-h-screen flex-col items-center p-8 space-y-6 text-white">
+      <h1 className="text-3xl font-bold">My Schedule</h1>
+      {lastUploaded && (
+        <p className="text-sm text-gray-400">Last Uploaded: {lastUploaded}</p>
+      )}
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : profileName ? (
-        <div className="w-full max-w-4xl grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4 text-center">
-          {calendarWeek.map((dayObj, index) => {
-            const hasShift = shifts.includes(dayObj.dateStr);
-
+      {entry ? (
+        <div className="flex flex-wrap gap-4 justify-center">
+          {weekDates.map(date => {
+            const shift = entry.shifts.includes(date);
+            const formatted = dayjs(date).format('ddd M/D');
             return (
               <div
-                key={index}
-                className={`p-4 rounded shadow border transition ${
-                  hasShift
-                    ? "bg-green-600 text-white border-green-700"
-                    : "bg-gray-100 text-gray-800 border-gray-300"
+                key={date}
+                className={`px-4 py-2 rounded shadow ${
+                  shift ? 'bg-green-500 text-white' : 'bg-gray-200 text-black'
                 }`}
               >
-                <div className="font-semibold text-lg">{dayObj.day}</div>
-                <div className="text-xl mt-2">
-                  {formatShortDate(dayObj.dateStr)}
-                </div>
-                {hasShift && (
-                  <div className="mt-2 text-2xl">✅</div>
-                )}
+                {formatted}
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-red-500">No profile found. Please register again.</p>
+        <p className="text-center mt-8 text-gray-400">
+          No shifts found in schedule.
+        </p>
       )}
     </main>
   );
-}
-
-// Build calendar week (Thu → Wed), starting from baseDate
-function getCalendarWeek(baseISODate: string) {
-  const baseDate = new Date(baseISODate);
-  const dayOfWeek = baseDate.getDay(); // 0=Sun .. 6=Sat
-
-  // Calculate nearest Thursday (before or same)
-  const diffToThursday = (4 - dayOfWeek + 7) % 7;
-  const thursday = new Date(baseDate);
-  thursday.setDate(baseDate.getDate() - diffToThursday);
-
-  const week: { day: string; dateStr: string }[] = [];
-  const dayNames = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(thursday);
-    d.setDate(thursday.getDate() + i);
-
-    const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
-
-    week.push({
-      day: dayNames[i % 7],
-      dateStr,
-    });
-  }
-
-  return week;
-}
-
-function formatShortDate(isoDate: string): string {
-  const d = new Date(isoDate);
-  const month = d.getMonth() + 1; // Jan = 0
-  const day = d.getDate();
-  return `${month}/${day}`;
 }
