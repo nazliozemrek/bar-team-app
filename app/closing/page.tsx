@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { useState } from "react";
 import { db, auth } from "@/lib/firebase";
@@ -17,6 +17,8 @@ export default function ClosingChecklistPage() {
     { id: 4, text: "Check ice bins", done: false },
   ]);
 
+  const allDone = tasks.every(task => task.done);
+
   const toggleTask = (id: number) => {
     setTasks(tasks.map(task =>
       task.id === id ? { ...task, done: !task.done } : task
@@ -29,12 +31,15 @@ export default function ClosingChecklistPage() {
       return;
     }
 
-    const dateId = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateId = new Date().toISOString().split('T')[0];
     const checklistRef = doc(db, "Checklists", dateId);
 
     await setDoc(checklistRef, {
       [checklistType]: tasks,
-      user: user.email,
+      user: {
+        uid: user.uid,
+        name: user.displayName || user.email,
+      },
       completedAt: serverTimestamp(),
     }, { merge: true });
 
@@ -58,6 +63,14 @@ export default function ClosingChecklistPage() {
             </label>
           </div>
         ))}
+
+        {allDone && (
+          <div className="mt-4 p-4 bg-green-100 border-l-4 border-green-600 text-green-800 rounded text-center">
+            ✅ Thank you for completing the checklist!<br />
+            Please wait for your manager or supervisor to verify before leaving.
+          </div>
+        )}
+
         <button
           onClick={handleSave}
           className="mt-6 w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700"

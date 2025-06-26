@@ -39,7 +39,10 @@ export default function NavBar() {
   ];
 
   if (userRole === "manager") {
-    commonLinks.push({ href: "/upload-schedule", label: "Upload Schedule" });
+    commonLinks.push(
+      { href: "/upload-schedule", label: "Upload Schedule" },
+      { href: "/manager/checklists", label: "View Submissions" }
+    );
   }
 
   return (
