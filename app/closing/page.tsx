@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { db, auth } from "@/lib/firebase";
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc,increment, serverTimestamp } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function ClosingChecklistPage() {
@@ -31,27 +31,38 @@ export default function ClosingChecklistPage() {
     }
 
     const dateId = new Date().toISOString().split('T')[0];
-    const checklistRef = doc(db, "Checklists", dateId);
+    // const checklistRef = doc(db, "Checklists", dateId);
+    const submissionRef = doc(db,"Checklists",dateId,"submissions",user.uid);
+    const existingSnap = await getDoc(submissionRef);
+    if(existingSnap.exists()){
+        alert("You've already submitted this checklist today!");
+        return;
+    }
 
-    await setDoc(checklistRef, {
-      [checklistType]: tasks,
-      user: user.email,
+     await setDoc(submissionRef, {
+      type:"closing",
+      tasks,
+      userId: user.uid,
+      name: user.displayName,
       completedAt: serverTimestamp(),
-    }, { merge: true });
+    });
 
     // XP logic
-    const completedTasks = tasks.filter(task => task.done).length;
-    const gainedXP = completedTasks * 10;
+    // const completedTasks = tasks.filter(task => task.done).length;
+    const gainedXP = tasks.filter(t => t.done).length * 10;
 
     const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
+    await updateDoc(userRef,{
+      xp:increment(gainedXP)
+    });
+    // const userSnap = await getDoc(userRef);
 
-    if (userSnap.exists()) {
-      const currentXP = userSnap.data().xp || 0;
-      await updateDoc(userRef, {
-        xp: currentXP + gainedXP,
-      });
-    }
+    // if (userSnap.exists()) {
+    //   const currentXP = userSnap.data().xp || 0;
+    //   await updateDoc(userRef, {
+    //     xp: currentXP + gainedXP,
+    //   });
+    // }
 
     alert(`Checklist saved! You earned ${gainedXP} XP!`);
   };

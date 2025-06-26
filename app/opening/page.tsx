@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { db, auth } from "@/lib/firebase";
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc,increment, serverTimestamp } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function OpeningChecklistPage() {
@@ -24,37 +24,89 @@ export default function OpeningChecklistPage() {
     ));
   };
 
+  // const handleSave = async () => {
+  //   if (!user) {
+  //     alert("Not logged in");
+  //     return;
+  //   }
+
+  //   const dateId = new Date().toISOString().split('T')[0];
+  //   //const checklistRef = doc(db, "Checklists", dateId);
+  //   const submissionRef = doc(db,"Checklists",dateId,"submissions",user.uid);
+  //   const userSnap = await getDoc(userRef);
+  //   const userName = userSnap.exists() ? userSnap.data().name : user.displayName || "Unknown";
+
+  //   const existingSnap = await getDoc(submissionRef);
+  //   if(existingSnap.exists()){
+  //       alert("You've already submitted this checklist today!");
+  //       return;
+  //   }
+
+  //   await setDoc(submissionRef, {
+  //     type:"opening",
+  //     tasks,
+  //     userId: user.uid,
+  //     name: userName,
+  //     completedAt: serverTimestamp(),
+  //   });
+
+  //   // XP logic
+  //   // const completedTasks = tasks.filter(task => task.done).length;
+  //   const gainedXP = tasks.filter(t => t.done).length * 10;
+
+  //   const userRef = doc(db, "users", user.uid);
+  //   await updateDoc(userRef,{
+  //     xp:increment(gainedXP)
+  //   });
+
+  //   // const userSnap = await getDoc(userRef);
+
+  //   // if (userSnap.exists()) {
+  //   //   const currentXP = userSnap.data().xp || 0;
+  //   //   await updateDoc(userRef, {
+  //   //     xp: currentXP + gainedXP,
+  //   //   });
+  //   // }
+
+  //   alert(`Checklist saved! You earned ${gainedXP} XP!`);
+  // };
   const handleSave = async () => {
-    if (!user) {
-      alert("Not logged in");
-      return;
-    }
+  if (!user) {
+    alert("Not logged in");
+    return;
+  }
 
-    const dateId = new Date().toISOString().split('T')[0];
-    const checklistRef = doc(db, "Checklists", dateId);
+  const dateId = new Date().toISOString().split('T')[0];
+  const submissionRef = doc(db, "Checklists", dateId, "submissions", user.uid);
+  const userRef = doc(db, "users", user.uid);
 
-    await setDoc(checklistRef, {
-      [checklistType]: tasks,
-      user: user.email,
-      completedAt: serverTimestamp(),
-    }, { merge: true });
+  const userSnap = await getDoc(userRef);
+  const userName = userSnap.exists() ? userSnap.data().name : user.displayName || "Unknown";
 
-    // XP logic
-    const completedTasks = tasks.filter(task => task.done).length;
-    const gainedXP = completedTasks * 10;
+  const existingSnap = await getDoc(submissionRef);
+  if (existingSnap.exists()) {
+    alert("You've already submitted this checklist today!");
+    return;
+  }
 
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
+  await setDoc(submissionRef, {
+    type: "opening",
+    tasks,
+    userId: user.uid,
+    name: userName,
+    completedAt: serverTimestamp(),
+  });
 
-    if (userSnap.exists()) {
-      const currentXP = userSnap.data().xp || 0;
-      await updateDoc(userRef, {
-        xp: currentXP + gainedXP,
-      });
-    }
+  const gainedXP = tasks.filter(t => t.done).length * 10;
 
-    alert(`Checklist saved! You earned ${gainedXP} XP!`);
-  };
+  await updateDoc(userRef, {
+    xp: increment(gainedXP),
+  });
+
+  alert(`Checklist saved! You earned ${gainedXP} XP!`);
+};
+
+  
 
   return (
     <main className="flex min-h-screen flex-col items-center p-8 space-y-6">

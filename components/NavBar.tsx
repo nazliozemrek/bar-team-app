@@ -6,11 +6,13 @@ import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useRouter } from "next/navigation";
 
 export default function NavBar() {
   const [user] = useAuthState(auth);
   const [userRole, setUserRole] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -30,6 +32,7 @@ export default function NavBar() {
 
   const handleLogout = async () => {
     await auth.signOut();
+    router.push("/")
   };
 
   const commonLinks = [
@@ -44,6 +47,11 @@ export default function NavBar() {
       { href: "/manager/checklists", label: "View Submissions" },
       { href: "/leaderboard", label:"Leaderboard"}
     );
+  } else if (userRole === 'bartender'){
+    commonLinks.push(
+      { href: "/leaderboard", label:"Leaderboard"}
+    )
+      
   }
 
   return (
