@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { db, auth } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function OpeningChecklistPage() {
   const [user] = useAuthState(auth);
-
   const checklistType = "opening";
 
   const [tasks, setTasks] = useState([
@@ -36,14 +35,25 @@ export default function OpeningChecklistPage() {
 
     await setDoc(checklistRef, {
       [checklistType]: tasks,
-      user: {
-        uid: user.uid,
-        name: user.displayName || user.email,
-      },
+      user: user.email,
       completedAt: serverTimestamp(),
     }, { merge: true });
 
-    alert("Checklist saved!");
+    // XP logic
+    const completedTasks = tasks.filter(task => task.done).length;
+    const gainedXP = completedTasks * 10;
+
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const currentXP = userSnap.data().xp || 0;
+      await updateDoc(userRef, {
+        xp: currentXP + gainedXP,
+      });
+    }
+
+    alert(`Checklist saved! You earned ${gainedXP} XP!`);
   };
 
   return (
@@ -66,7 +76,8 @@ export default function OpeningChecklistPage() {
 
         {allDone && (
           <div className="mt-4 p-4 bg-green-100 border-l-4 border-green-600 text-green-800 rounded text-center">
-            ✅ Thank you for completing the checklist!<br />
+            ✅ Thank you for completing the checklist!
+            <br />
             Please wait for your manager or supervisor to verify before leaving.
           </div>
         )}
