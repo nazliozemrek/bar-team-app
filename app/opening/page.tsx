@@ -103,6 +103,16 @@ export default function OpeningChecklistPage() {
     xp: increment(gainedXP),
   });
 
+  await fetch('/api/sendNotification', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: '✅ Checklist Submitted',
+    message: `${user.displayName || 'A team member'} completed the opening checklist.`,
+  }),
+});
+
+
   alert(`Checklist saved! You earned ${gainedXP} XP!`);
 };
 

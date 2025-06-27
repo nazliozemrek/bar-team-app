@@ -6,6 +6,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db,auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { collection,getDocs,updateDoc } from 'firebase/firestore';
+import { sendPushNotification } from '@/lib/sendPushNotification';
+
 
 async function backfillScheduleUID(name: string, uid : string) {
   const schedulesRef = collection(db,'Schedules');
@@ -59,6 +61,8 @@ export default function RegisterPage() {
       });
 
       await backfillScheduleUID(name,user.uid);
+      await sendPushNotification('New Team Member!', `${name} just joined the team.`);
+
 
       router.push('/schedule');
     } catch (err: any) {

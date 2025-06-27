@@ -55,6 +55,15 @@ export default function ClosingChecklistPage() {
     await updateDoc(userRef,{
       xp:increment(gainedXP)
     });
+    await fetch('/api/sendNotification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+      title: '✅ Checklist Submitted',
+      message: `${user.displayName || 'A team member'} completed the closing checklist.`,
+  }),
+});
+
     // const userSnap = await getDoc(userRef);
 
     // if (userSnap.exists()) {
