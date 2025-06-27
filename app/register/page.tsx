@@ -3,8 +3,33 @@
 import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { db,auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { collection,getDocs,updateDoc } from 'firebase/firestore';
+
+async function backfillScheduleUID(name: string, uid : string) {
+  const schedulesRef = collection(db,'Schedules');
+  const snapshot = await getDocs(schedulesRef);
+  
+  for (const docSnap of snapshot.docs){
+    const data = docSnap.data();
+    if(!Array.isArray(data.schedule)) continue;
+    
+    const updated = data.schedule.map((entry: any ) => {
+      if (
+        entry.name?.trim().toLowerCase() === name.trim().toLocaleLowerCase() && 
+        !entry.uid
+      ){
+        return { ...entry,uid};
+      }
+      return entry;
+    });
+    await updateDoc(doc(db,'Schedules',docSnap.id),{schedule: updated});
+  }
+}
+
+
+
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -32,6 +57,8 @@ export default function RegisterPage() {
         role: 'bartender',
         createdAt: serverTimestamp(),
       });
+
+      await backfillScheduleUID(name,user.uid);
 
       router.push('/schedule');
     } catch (err: any) {

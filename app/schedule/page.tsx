@@ -59,9 +59,10 @@ export default function SchedulePage() {
   }
 
   const userName = user.displayName || user.email;
-  const entry = schedule.find(e =>
-    e.name === userName || e.email === user.email
-  );
+  // const entry = schedule.find(e =>
+  //   e.name === userName || e.email === user.email
+  // );
+  const entry = schedule.find(e => e.uid === user.uid);
 
   return (
     <main className="flex min-h-screen flex-col items-center p-8 space-y-6 text-white">

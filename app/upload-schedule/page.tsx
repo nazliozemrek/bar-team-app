@@ -59,7 +59,11 @@ export default function UploadSchedulePage() {
       const usersQuery = collection(db, "users");
       const querySnapshot = await getDocs(usersQuery);
 
-      const allUsers = querySnapshot.docs.map(doc => doc.data());
+      const allUsers = querySnapshot.docs.map(doc => ({
+        ...doc.data(),
+        uid:doc.id,
+
+    }));
       setUsersList(allUsers);
     };
 
@@ -121,9 +125,10 @@ export default function UploadSchedulePage() {
               }
             }
           });
-
-          return { name, email, shifts };
+          const uid = lookupUIDByName(name,usersList);
+          return { name, email,uid, shifts };
         });
+      console.log("Final scheduleData is being uploaded",scheduleData)
 
       console.log("Parsed schedule:", scheduleData);
 
@@ -264,3 +269,11 @@ function lookupEmailByName(name: string, users: any[]): string {
   );
   return match?.email || "";
 }
+
+function lookupUIDByName(name: string, users: any[]): string {
+  const match = users.find(u =>
+    u.name?.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  return match?.uid || '';
+}
+
