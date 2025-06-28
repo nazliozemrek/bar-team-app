@@ -61,7 +61,15 @@ export default function RegisterPage() {
       });
 
       await backfillScheduleUID(name,user.uid);
-      await sendPushNotification('New Team Member!', `${name} just joined the team.`);
+      await fetch('/api/sendNotification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'New Team Member!',
+          message: `${name} just joined the team.`,
+  }),
+});
+
 
 
       router.push('/schedule');
