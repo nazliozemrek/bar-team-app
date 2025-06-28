@@ -125,15 +125,17 @@ export default function UploadSchedulePage() {
         uploadedAt: new Date().toISOString(),
       });
 
-      // ✅ Push notification using /api/sendNotification
       await fetch('/api/sendNotification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+          method: 'POST',
+          headers: {
+                    'Content-Type': 'application/json',
+                   },
+          body: JSON.stringify({
           title: '📅 New Schedule Uploaded!',
-          message: 'The latest schedule is now live.',
-        }),
-      });
+          message: 'Check your updated shifts in the app.',
+       }),
+     });
+
 
       alert("Schedule uploaded!");
       window.location.reload();
